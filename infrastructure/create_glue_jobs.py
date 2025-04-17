@@ -32,8 +32,7 @@ def create_glue_job(job_name, role_arn, script_location, bucket_name, project_li
             Connections={
                 "Connections": [rds_connection_name]
             },
-            NumberOfWorkers=2,
-            WorkerType="G.1X"
+            NumberOfWorkers=2
         )
         print(f"Job {job_name} created successfully!")
     except client.exceptions.AlreadyExistsException:
