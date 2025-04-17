@@ -46,15 +46,15 @@ jobs:
       - name: Create S3 folders if not exist
         run: |
           python infrastructure/create_folders.py $BUCKET_NAME \
-          "analytics/" \
-          "code/customer_analytics/" 
+          "analytics/" "code/customer_analytics/"
 
       - name: Build wheel file
         run: python setup.py bdist_wheel
 
       - name: Upload Wheel Artifact to S3
         run: |
-          WHEEL_FILE=$(ls dist/ | grep -E "customer_analytics-.*\.whl" | head -n 1)
+          WHEEL_FILE=$(ls dist/ | grep -E "customer_analytics-.*\.whl" | \
+          head -n 1)
           echo "WHEEL_FILE=$WHEEL_FILE" >> $GITHUB_ENV
           aws s3 cp dist/$WHEEL_FILE s3://$BUCKET_NAME/$DEST_PATH/
 
@@ -71,9 +71,13 @@ jobs:
   deploy_glue_jobs:
     needs: setup
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     strategy:
       matrix:
-        glue: [purchase_behavior, churn_prediction, omni_channel_engagement, fraud_detection, pricing_trends]
+        glue: [purchase_behavior, churn_prediction, omni_channel_engagement, \
+              fraud_detection, pricing_trends]
 
     steps:
       - uses: actions/checkout@v3
