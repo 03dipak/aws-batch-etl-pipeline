@@ -8,7 +8,7 @@ long_description = (this_directory / "README.md").read_text()
 setup(
     name="customer_analytics",
     version="0.1.0",
-    packages=find_packages(include=["glue_etl_pipeline", "glue_etl_pipeline.*"]),
+    packages=find_packages(),
     install_requires=[
         "boto3>=1.34.0",
         "pyspark>=3.3.0",

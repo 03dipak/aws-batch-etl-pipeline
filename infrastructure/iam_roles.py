@@ -73,3 +73,21 @@ def is_policy_attached(iam, role_name, policy_arn):
 if __name__ == '__main__':
     role_name = sys.argv[1]
     create_or_update_iam_role(role_name)
+
+
+"""
+- name: Create IAM Role
+        run: python infrastructure/iam_roles.py EventDrivenRole
+
+        or
+
+- name: Create IAM Role for Glue Jobs
+        run: |
+          python infrastructure/iam_roles.py ${{ env.IAM_ROLE_NAME }}
+
+      - name: Read IAM Role ARN
+        id: read_role
+        run: |
+          echo "IAM_ROLE_ARN_FILE=$(cat iam_role_arn.txt)" >> "$GITHUB_ENV"
+
+"""

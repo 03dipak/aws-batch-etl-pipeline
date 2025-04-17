@@ -1,7 +1,7 @@
 import boto3
 import sys
 
-def create_glue_job(job_name, role_arn, script_location, bucket_name, project_lib_path, glue_version="2.0", worker_type="Standard", worker_count=2, rds_connection_name="my-rds-mysql-connection"):
+def create_glue_job(job_name, role_arn, script_location, bucket_name, project_lib_path, glue_version="4.0", worker_type="Standard", worker_count=2, rds_connection_name="my-rds-mysql-connection"):
     client = boto3.client('glue')
 
     # Define Default Arguments

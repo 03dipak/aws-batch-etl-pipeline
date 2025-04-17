@@ -6,23 +6,18 @@ name: Deploy Glue Infrastructure
     branches:
       - main
 
+env:
+  REGION: ${{ secrets.AWS_REGION }}
+  BUCKET_NAME: ${{ secrets.GLUE_BUCKET }}
+  AWS_WEB_ROLE: ${{ secrets.AWS_WEB_ROLE }}
+  DEST_PATH: code/customer_analytics
+
 jobs:
-  deploy:
+  setup:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
       contents: read
-    strategy:
-      matrix:
-        glue: [purchase_behavior, churn_prediction, omni_channel_engagement, \
-               fraud_detection, pricing_trends]
-    env:
-      REGION: ${{ secrets.AWS_REGION }}
-      BUCKET_NAME: ${{ secrets.GLUE_BUCKET }}
-      ROLE_ARN: ${{ secrets.ROLE_ARN }}
-      IAM_ROLE_NAME: EventDrivenRole
-      AWS_WEB_ROLE: ${{ secrets.AWS_WEB_ROLE }}
-      PROJECT_LIB_PATH: s3://${{ secrets.GLUE_BUCKET }}/code/libs/
 
     steps:
       - name: Checkout repo
@@ -31,7 +26,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: 3.11
+          python-version: 3.10
 
       - name: Install dependencies
         run: |
@@ -41,59 +36,75 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: ${{ secrets.AWS_WEB_ROLE }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_WEB_ROLE }}
+          aws-region: ${{ env.REGION }}
 
       - name: Create S3 Buckets if not exist
         run: |
-          python infrastructure/create_s3_buckets.py \
-          ${{ secrets.GLUE_BUCKET }} ${{ secrets.AWS_REGION }}
+          python infrastructure/create_s3_buckets.py $BUCKET_NAME $REGION
 
       - name: Create S3 folders if not exist
         run: |
-          python infrastructure/create_folders.py ${{ secrets.GLUE_BUCKET }} \
+          python infrastructure/create_folders.py $BUCKET_NAME \
           "analytics/" \
-          "code/customer_analytics/" \
-          "code/temp/${{ matrix.glue }}/"
+          "code/customer_analytics/" 
 
-      - name: Create IAM Role for Glue Jobs
-        run: |
-          python infrastructure/iam_roles.py ${{ env.IAM_ROLE_NAME }}
+      - name: Build wheel file
+        run: python setup.py bdist_wheel
 
-      - name: Read IAM Role ARN
-        id: read_role
+      - name: Upload Wheel Artifact to S3
         run: |
-          echo "IAM_ROLE_ARN_FILE=$(cat iam_role_arn.txt)" >> "$GITHUB_ENV"
-
-      - name: Create Glue Jobs
-        run: |
-          python infrastructure/create_glue_jobs.py churn_prediction \
-          ${{ secrets.AWS_WEB_ROLE }} \
-          s3://${{ secrets.GLUE_BUCKET }}/code/churn_prediction.py \
-          ${{ secrets.GLUE_BUCKET }} ${{ env.PROJECT_LIB_PATH }}
-          python infrastructure/create_glue_jobs.py purchase_behavior \
-          ${{ secrets.AWS_WEB_ROLE }} \
-          s3://${{ secrets.GLUE_BUCKET }}/code/purchase_behavior.py \
-          ${{ secrets.GLUE_BUCKET }} ${{ env.PROJECT_LIB_PATH }}
-          python infrastructure/create_glue_jobs.py omni_channel_engagement \
-          ${{ secrets.AWS_WEB_ROLE }} \
-          s3://${{ secrets.GLUE_BUCKET }}/code/omni_channel_engagement.py \
-          ${{ secrets.GLUE_BUCKET }} ${{ env.PROJECT_LIB_PATH }}
-          python infrastructure/create_glue_jobs.py fraud_detection \
-          ${{ secrets.AWS_WEB_ROLE }} \
-          s3://${{ secrets.GLUE_BUCKET }}/code/fraud_detection.py \
-          ${{ secrets.GLUE_BUCKET }} ${{ env.PROJECT_LIB_PATH }}
-          python infrastructure/create_glue_jobs.py pricing_trends \
-          ${{ secrets.AWS_WEB_ROLE }} \
-          s3://${{ secrets.GLUE_BUCKET }}/code/pricing_trends.py \
-          ${{ secrets.GLUE_BUCKET }} ${{ env.PROJECT_LIB_PATH }}
+          WHEEL_FILE=$(ls dist/ | grep -E "customer_analytics-.*\.whl" | head -n 1)
+          echo "WHEEL_FILE=$WHEEL_FILE" >> $GITHUB_ENV
+          aws s3 cp dist/$WHEEL_FILE s3://$BUCKET_NAME/$DEST_PATH/
 
       - name: Create Glue Crawlers
         run: |
           python infrastructure/create_glue_crawlers.py customer360_crawler \
-          ${{ secrets.AWS_WEB_ROLE }} customer_analytics \
-          s3://${{ secrets.GLUE_BUCKET }}/analytics/
+          $AWS_WEB_ROLE customer_analytics \
+          s3://$BUCKET_NAME/analytics/
 
       - name: Create Glue Workflow
         run: |
           python infrastructure/create_glue_workflows.py customer360_workflow
+
+  deploy_glue_jobs:
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        glue: [purchase_behavior, churn_prediction, omni_channel_engagement, fraud_detection, pricing_trends]
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: 3.10
+
+      - run: |
+          pip install -r requirements.txt
+          pip install boto3
+
+      - uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ env.AWS_WEB_ROLE }}
+          aws-region: ${{ env.REGION }}
+
+      - name: Create S3 folders if not exist
+        run: |
+          python infrastructure/create_folders.py $BUCKET_NAME \
+          "code/temp/${{ matrix.glue }}/"
+
+      - name: Upload Glue Script to S3
+        run: |
+          aws s3 cp glue_upload_script/${{ matrix.glue }}.py \
+          s3://$BUCKET_NAME/$DEST_PATH/${{ matrix.glue }}.py
+
+      - name: Deploy Glue Job - ${{ matrix.glue }}
+        run: |
+          python infrastructure/create_glue_jobs.py ${{ matrix.glue }} \
+          $AWS_WEB_ROLE \
+          s3://$BUCKET_NAME/$DEST_PATH/${{ matrix.glue }}.py \
+          $BUCKET_NAME \
+          s3://$BUCKET_NAME/$DEST_PATH/$WHEEL_FILE
