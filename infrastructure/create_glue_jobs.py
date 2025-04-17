@@ -27,7 +27,6 @@ def create_glue_job(job_name, role_arn, script_location, bucket_name, project_li
             WorkerType=worker_type,
             NumberOfWorkers=worker_count,
             Timeout=2880,  # in minutes
-            MaxCapacity=10.0,
             DefaultArguments=default_arguments,
             Connections={
                 "Connections": [rds_connection_name]
@@ -48,7 +47,6 @@ def create_glue_job(job_name, role_arn, script_location, bucket_name, project_li
                 'WorkerType': worker_type,
                 'NumberOfWorkers': worker_count,
                 'Timeout': 2880,
-                'MaxCapacity': 10.0,
                 'DefaultArguments': default_arguments,
                 'Connections': {
                     "Connections": [rds_connection_name]
