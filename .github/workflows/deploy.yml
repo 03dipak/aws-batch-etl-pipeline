@@ -11,6 +11,9 @@ env:
   BUCKET_NAME: ${{ secrets.GLUE_BUCKET }}
   AWS_WEB_ROLE: ${{ secrets.AWS_WEB_ROLE }}
   DEST_PATH: code/customer_analytics
+  AWS_CRAWLER_NAME: customer360_crawler
+  AWS_WORKFLOW_NAME: customer360_workflow
+  WHEEL_FILE_NAME: customer_analytics-0.1.0-py3-none-any.whl
 
 jobs:
   setup:
@@ -27,6 +30,13 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: 3
+
+      - name: Set Glue Jobs as Output
+        id: set-jobs
+        run: |
+          echo 'glue_jobs=["purchase_behavior","churn_prediction",
+          "omni_channel_engagement","fraud_detection","pricing_trends"]'
+           >> $GITHUB_OUTPUT
 
       - name: Install dependencies
         run: |
@@ -53,39 +63,41 @@ jobs:
 
       - name: Upload Wheel Artifact to S3
         run: |
-          WHEEL_FILE=$(ls dist/ | grep -E "customer_analytics-.*\.whl" | \
-          head -n 1)
-          echo "WHEEL_FILE=$WHEEL_FILE" >> $GITHUB_ENV
-          aws s3 cp dist/$WHEEL_FILE s3://$BUCKET_NAME/$DEST_PATH/
+          aws s3 cp dist/$WHEEL_FILE_NAME s3://$BUCKET_NAME/$DEST_PATH/
 
       - name: Create Glue Crawlers
         run: |
-          python infrastructure/create_glue_crawlers.py customer360_crawler \
+          python infrastructure/create_glue_crawlers.py $AWS_CRAWLER_NAME \
           $AWS_WEB_ROLE customer_analytics \
           s3://$BUCKET_NAME/analytics/
 
       - name: Create Glue Workflow
         run: |
-          python infrastructure/create_glue_workflows.py customer360_workflow
+          python infrastructure/create_glue_workflows.py $AWS_WORKFLOW_NAME
 
   deploy_glue_jobs:
     needs: setup
     runs-on: ubuntu-latest
+    outputs:
+      glue_jobs: ${{ steps.set-jobs.outputs.glue_jobs }}
     permissions:
       id-token: write
       contents: read
     strategy:
       matrix:
-        glue: [purchase_behavior, churn_prediction, omni_channel_engagement, fraud_detection, pricing_trends]
+        glue: ${{ fromJSON(needs.setup.outputs.glue_jobs) }}
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v3
 
-      - uses: actions/setup-python@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
           python-version: 3
 
-      - run: |
+      - name: Install dependencies
+        run: |
           pip install -r requirements.txt
           pip install boto3
 
@@ -106,12 +118,40 @@ jobs:
 
       - name: Deploy Glue Job - ${{ matrix.glue }}
         run: |
-          WHEEL_FILE=$(ls dist/ | grep -E "customer_analytics-.*\.whl" | \
-          head -n 1)
-          echo "WHEEL_FILE=$WHEEL_FILE" >> $GITHUB_ENV
-
           python infrastructure/create_glue_jobs.py ${{ matrix.glue }} \
           $AWS_WEB_ROLE \
           s3://$BUCKET_NAME/$DEST_PATH/${{ matrix.glue }}.py \
           $BUCKET_NAME \
-          s3://$BUCKET_NAME/$DEST_PATH/$WHEEL_FILE
+          s3://$BUCKET_NAME/$DEST_PATH/$WHEEL_FILE_NAME
+
+  create_glue_triggers:
+    needs: setup
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install boto3
+
+      - uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ env.AWS_WEB_ROLE }}
+          aws-region: ${{ env.REGION }}
+
+      - name: Create Glue Triggers
+        run: |
+          python infrastructure/create_glue_triggers.py \
+          '${{ needs.setup.outputs.glue_jobs }}' $REGION $BUCKET_NAME \
+          $AWS_CRAWLER_NAME $AWS_WORKFLOW_NAME
