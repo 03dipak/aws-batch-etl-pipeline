@@ -16,3 +16,6 @@ env/
 # Ignore package distribution files
 *.tar.gz
 *.whl
+
+# Ignore file for github action
+.secrets
