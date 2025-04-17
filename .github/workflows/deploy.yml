@@ -144,5 +144,5 @@ jobs:
       - name: Create Glue Triggers
         run: |
           python infrastructure/create_glue_triggers.py \
-          ["purchase_behavior","churn_prediction","omni_channel_engagement","fraud_detection","pricing_trends"]\
+          '["purchase_behavior","churn_prediction","omni_channel_engagement","fraud_detection","pricing_trends"]' \
           $REGION $BUCKET_NAME $AWS_CRAWLER_NAME $AWS_WORKFLOW_NAME
