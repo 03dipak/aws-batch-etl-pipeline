@@ -34,10 +34,8 @@ jobs:
       - name: Set Glue Jobs as Output
         id: set-jobs
         run: |
-          echo 'glue_jobs=["purchase_behavior","churn_prediction",
-          "omni_channel_engagement","fraud_detection","pricing_trends"]'
-          > glue_jobs.json
-          echo "glue_jobs=$(cat glue_jobs.json)" >> $GITHUB_OUTPUT
+          JOBS_JSON='["purchase_behavior","churn_prediction","omni_channel_engagement","fraud_detection","pricing_trends"]'
+          echo "glue_jobs=$JOBS_JSON" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
         run: |
