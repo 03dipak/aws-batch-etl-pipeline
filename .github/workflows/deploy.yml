@@ -152,5 +152,5 @@ jobs:
       - name: Create Glue Triggers
         run: |
           python infrastructure/create_glue_triggers.py \
-          '${{ needs.setup.outputs.glue_jobs }}' $REGION $BUCKET_NAME \
+          "${{ needs.setup.outputs.glue_jobs }}"" $REGION $BUCKET_NAME \
           $AWS_CRAWLER_NAME $AWS_WORKFLOW_NAME
