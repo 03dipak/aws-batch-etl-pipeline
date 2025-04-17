@@ -76,8 +76,7 @@ jobs:
       contents: read
     strategy:
       matrix:
-        glue: [purchase_behavior, churn_prediction, omni_channel_engagement, \
-              fraud_detection, pricing_trends]
+        glue: [purchase_behavior, churn_prediction, omni_channel_engagement, fraud_detection, pricing_trends]
 
     steps:
       - uses: actions/checkout@v3
