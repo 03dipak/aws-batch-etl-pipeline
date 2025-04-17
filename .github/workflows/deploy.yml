@@ -68,30 +68,30 @@ jobs:
       - name: Create Glue Jobs
         run: |
           python infrastructure/create_glue_jobs.py churn_prediction \
-          ${{ env.IAM_ROLE_ARN_FILE }} \
+          ${{ secrets.AWS_WEB_ROLE }} \
           s3://${{ secrets.GLUE_BUCKET }}/code/churn_prediction.py \
           ${{ secrets.GLUE_BUCKET }} ${{ env.PROJECT_LIB_PATH }}
           python infrastructure/create_glue_jobs.py purchase_behavior \
-          ${{ env.IAM_ROLE_ARN_FILE }} \
+          ${{ secrets.AWS_WEB_ROLE }} \
           s3://${{ secrets.GLUE_BUCKET }}/code/purchase_behavior.py \
           ${{ secrets.GLUE_BUCKET }} ${{ env.PROJECT_LIB_PATH }}
           python infrastructure/create_glue_jobs.py omni_channel_engagement \
-          ${{ env.IAM_ROLE_ARN_FILE }} \
+          ${{ secrets.AWS_WEB_ROLE }} \
           s3://${{ secrets.GLUE_BUCKET }}/code/omni_channel_engagement.py \
           ${{ secrets.GLUE_BUCKET }} ${{ env.PROJECT_LIB_PATH }}
           python infrastructure/create_glue_jobs.py fraud_detection \
-          ${{ env.IAM_ROLE_ARN_FILE }} \
+          ${{ secrets.AWS_WEB_ROLE }} \
           s3://${{ secrets.GLUE_BUCKET }}/code/fraud_detection.py \
           ${{ secrets.GLUE_BUCKET }} ${{ env.PROJECT_LIB_PATH }}
           python infrastructure/create_glue_jobs.py pricing_trends \
-          ${{ env.IAM_ROLE_ARN_FILE }} \
+          ${{ secrets.AWS_WEB_ROLE }} \
           s3://${{ secrets.GLUE_BUCKET }}/code/pricing_trends.py \
           ${{ secrets.GLUE_BUCKET }} ${{ env.PROJECT_LIB_PATH }}
 
       - name: Create Glue Crawlers
         run: |
           python infrastructure/create_glue_crawlers.py customer360_crawler \
-          ${{ env.IAM_ROLE_ARN_FILE }} customer_analytics \
+          ${{ secrets.AWS_WEB_ROLE }} customer_analytics \
           s3://${{ secrets.GLUE_BUCKET }}/analytics/
 
       - name: Create Glue Workflow
