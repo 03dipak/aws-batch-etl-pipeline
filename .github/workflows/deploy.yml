@@ -36,7 +36,8 @@ jobs:
         run: |
           echo 'glue_jobs=["purchase_behavior","churn_prediction",
           "omni_channel_engagement","fraud_detection","pricing_trends"]'
-           >> $GITHUB_OUTPUT
+          > glue_jobs.json
+          echo "glue_jobs=$(cat glue_jobs.json)" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
         run: |
