@@ -31,12 +31,6 @@ jobs:
         with:
           python-version: 3
 
-      - name: Set Glue Jobs as Output
-        id: set-jobs
-        run: |
-          echo '["purchase_behavior","churn_prediction","omni_channel_engagement","fraud_detection","pricing_trends"]' > jobs.json
-          echo "glue_jobs=$(cat jobs.json)" >> $GITHUB_OUTPUT
-
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
@@ -77,14 +71,12 @@ jobs:
   deploy_glue_jobs:
     needs: setup
     runs-on: ubuntu-latest
-    outputs:
-      glue_jobs: ${{ steps.set-jobs.outputs.glue_jobs }}
     permissions:
       id-token: write
       contents: read
     strategy:
       matrix:
-        glue: ${{ fromJSON(needs.setup.outputs.glue_jobs) }}
+        glue: ["purchase_behavior","churn_prediction","omni_channel_engagement","fraud_detection","pricing_trends"]
 
     steps:
       - name: Checkout repo
@@ -151,7 +143,6 @@ jobs:
 
       - name: Create Glue Triggers
         run: |
-          echo "Jobs JSON: ${{ needs.setup.outputs.glue_jobs }}"
           python infrastructure/create_glue_triggers.py \
-          "${{ needs.setup.outputs.glue_jobs }}" $REGION $BUCKET_NAME \
-          $AWS_CRAWLER_NAME $AWS_WORKFLOW_NAME
+          ["purchase_behavior","churn_prediction","omni_channel_engagement","fraud_detection","pricing_trends"]\
+          $REGION $BUCKET_NAME $AWS_CRAWLER_NAME $AWS_WORKFLOW_NAME
