@@ -15,14 +15,14 @@ jobs:
     strategy:
       matrix:
         glue: [purchase_behavior, churn_prediction, omni_channel_engagement, \
-              fraud_detection, pricing_trends]
+               fraud_detection, pricing_trends]
     env:
       REGION: ${{ secrets.AWS_REGION }}
       BUCKET_NAME: ${{ secrets.GLUE_BUCKET }}
       ROLE_ARN: ${{ secrets.ROLE_ARN }}
       IAM_ROLE_NAME: EventDrivenRole
       AWS_WEB_ROLE: ${{ secrets.AWS_WEB_ROLE }}
-      PROJECT_LIB_PATH: s3://$BUCKET_NAME/code/libs/
+      PROJECT_LIB_PATH: s3://${{ env.BUCKET_NAME }}/code/libs/
 
     steps:
       - name: Checkout repo
@@ -42,23 +42,23 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: ${{ secrets.AWS_WEB_ROLE }}
-          aws-region: $REGION
+          aws-region: ${{ env.REGION }}
 
       - name: Create S3 Buckets if not exist
         run: |
           python infrastructure/create_s3_buckets.py \
-          $BUCKET_NAME $REGION
+          ${{ env.BUCKET_NAME }} ${{ env.REGION }}
 
       - name: Create S3 folders if not exist
         run: |
-          python infrastructure/create_folders.py $BUCKET_NAME \
+          python infrastructure/create_folders.py ${{ env.BUCKET_NAME }} \
           "analytics/" \
           "code/customer_analytics/" \
           "code/temp/${{ matrix.glue }}/"
 
       - name: Create IAM Role for Glue Jobs
         run: |
-          python infrastructure/iam_roles.py $IAM_ROLE_NAME
+          python infrastructure/iam_roles.py ${{ env.IAM_ROLE_NAME }}
 
       - name: Read IAM Role ARN
         id: read_role
@@ -68,25 +68,25 @@ jobs:
       - name: Create Glue Jobs
         run: |
           python infrastructure/create_glue_jobs.py churn_prediction \
-          $IAM_ROLE_ARN_FILE s3://$BUCKET_NAME/code/churn_prediction.py \
-          $BUCKET_NAME $PROJECT_LIB_PATH
+          ${{ env.IAM_ROLE_ARN_FILE }} s3://${{ env.BUCKET_NAME }}/code/churn_prediction.py \
+          ${{ env.BUCKET_NAME }} ${{ env.PROJECT_LIB_PATH }}
           python infrastructure/create_glue_jobs.py purchase_behavior \
-          $IAM_ROLE_ARN_FILE s3://$BUCKET_NAME/code/purchase_behavior.py \
-          $BUCKET_NAME $PROJECT_LIB_PATH
+          ${{ env.IAM_ROLE_ARN_FILE }} s3://${{ env.BUCKET_NAME }}/code/purchase_behavior.py \
+          ${{ env.BUCKET_NAME }} ${{ env.PROJECT_LIB_PATH }}
           python infrastructure/create_glue_jobs.py omni_channel_engagement \
-          $IAM_ROLE_ARN_FILE s3://$BUCKET_NAME/code/omni_channel_engagement.py \
-          $BUCKET_NAME $PROJECT_LIB_PATH
+          ${{ env.IAM_ROLE_ARN_FILE }} s3://${{ env.BUCKET_NAME }}/code/omni_channel_engagement.py \
+          ${{ env.BUCKET_NAME }} ${{ env.PROJECT_LIB_PATH }}
           python infrastructure/create_glue_jobs.py fraud_detection \
-          $IAM_ROLE_ARN_FILE s3://$BUCKET_NAME/code/fraud_detection.py \
-          $BUCKET_NAME $PROJECT_LIB_PATH
+          ${{ env.IAM_ROLE_ARN_FILE }} s3://${{ env.BUCKET_NAME }}/code/fraud_detection.py \
+          ${{ env.BUCKET_NAME }} ${{ env.PROJECT_LIB_PATH }}
           python infrastructure/create_glue_jobs.py pricing_trends \
-          $IAM_ROLE_ARN_FILE s3://$BUCKET_NAME/code/pricing_trends.py \
-          $BUCKET_NAME $PROJECT_LIB_PATH
+          ${{ env.IAM_ROLE_ARN_FILE }} s3://${{ env.BUCKET_NAME }}/code/pricing_trends.py \
+          ${{ env.BUCKET_NAME }} ${{ env.PROJECT_LIB_PATH }}
 
       - name: Create Glue Crawlers
         run: |
           python infrastructure/create_glue_crawlers.py customer360_crawler \
-          $IAM_ROLE_ARN_FILE customer_analytics s3://$BUCKET_NAME/analytics/
+          ${{ env.IAM_ROLE_ARN_FILE }} customer_analytics s3://${{ env.BUCKET_NAME }}/analytics/
 
       - name: Create Glue Workflow
         run: |
