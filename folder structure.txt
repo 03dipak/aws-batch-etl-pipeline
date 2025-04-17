@@ -1,0 +1,123 @@
+repo-root/
+├── glue_etl_pipeline/                     # Glue-specific code (ETL scripts and utilities)
+│   ├── __init__.py 
+│   ├── churn_prediction.py               # Individual Glue job scripts (ETL scripts)
+│   ├── omni_channel_engagement.py
+│   ├── fraud_detection.py
+│   ├── pricing_trends.py
+│   ├── purchase_behavior.py
+│   ├── glue_config.py                    # Configurations and constants for Glue jobs
+│   ├── utils.py                          # Helper functions for Glue jobs (like logging, retries, etc.)
+│   └── logging.py                        # Centralized logging functions
+│
+├── glue_upload_script/                   # Contains job scripts for deployment to S3
+│   ├── purchase_behavior.py
+│   ├── churn_prediction.py
+│   ├── omni_channel_engagement.py
+│   ├── fraud_detection.py
+│   └── pricing_trends.py
+│
+├── infrastructure/                       # Infrastructure code for creating Glue resources (S3, IAM, Glue)
+│   ├── create_glue_jobs.py               # Script to create/update Glue jobs via Boto3
+│   ├── create_glue_crawlers.py           # Script to create Glue crawlers
+│   ├── create_glue_workflows.py          # Script for workflow creation and job orchestration
+│   ├── create_s3_buckets.py              # Script to create S3 buckets or check their existence
+│   ├── iam_roles.py                      # Script to handle IAM roles and policies
+│   └── deploy_infrastructure.py          # Deploy infrastructure (can be integrated with Terraform)
+│
+├── scripts/                              # Deployment scripts
+│   ├── glue_connection.py                # Script to configure connections to RDS or other services
+│   └── deploy_gluecustomer360_analytics_workflow.py  # Deployment script to initiate Glue jobs
+│
+├── .github/                              # GitHub actions and CI/CD workflows
+│   └── workflows/
+│       └── deploy.yml                    # GitHub Actions deployment configuration
+│
+├── requirements.txt                      # List of Python dependencies
+├── setup.py                              # Setup script to build Python packages
+├── Dockerfile                            # Dockerfile to build container image (if needed for custom jobs)
+├── terraform/                            # Infrastructure-as-Code (Terraform scripts)
+│   ├── main.tf
+│   └── variables.tf
+└── README.md                             # Documentation on project setup, deployment, etc.
+
+
+dummy yml file
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      matrix:
+        glue: [purchase_behavior, churn_prediction, omni_channel_engagement, fraud_detection, pricing_trends]
+
+    env:
+      REGION: ${{ secrets.AWS_REGION }}
+      BUCKET_NAME: ${{ secrets.GLUE_BUCKET }}
+      ROLE_ARN: ${{ secrets.ROLE_ARN }}
+      PROJECT_LIB_PATH: "s3://$BUCKET_NAME/libs/my_lib.zip"  # Modify as per your actual path
+      S3_TARGET_PATH: "s3://$BUCKET_NAME/analytics/"
+      RDS_CONNECTION_NAME: "my-rds-connection"  # Modify with actual RDS connection
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.11
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install setuptools wheel
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_WEB_ROLE }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Build Glue Wheel
+        run: |
+          python setup.py bdist_wheel -d glue_etl_pipeline/dist/
+
+      - name: Create S3 folders if not exist
+        run: |
+          # Define required folders based on Python script usage
+          FOLDERS=(
+            "analytics/"
+            "code/customer_analytics/"
+            "code/temp/${{ matrix.glue }}/"
+          )
+
+          for folder in "${FOLDERS[@]}"; do
+            aws s3 cp /dev/null "s3://$BUCKET_NAME/$folder.keep"
+            echo "✅ Ensured folder s3://$BUCKET_NAME/$folder"
+          done
+
+      - name: Upload Glue Artifacts to S3
+        run: |
+          WHEEL_FILE=glue_etl_pipeline/dist/${{ matrix.glue }}-0.1.0-py3-none-any.whl
+          DEST_PATH=code/customer_analytics
+          
+          # Optional: Create prefix (folder-like behavior in S3)
+          aws s3api put-object --bucket $BUCKET_NAME --key ${DEST_PATH}/
+
+          # Upload wheel and script
+          aws s3 cp $WHEEL_FILE s3://$BUCKET_NAME/$DEST_PATH/
+          aws s3 cp glue_upload_script/${{ matrix.glue }}.py s3://$BUCKET_NAME/$DEST_PATH/${{ matrix.glue }}.py
+
+      - name: Deploy Glue Job ${{ matrix.glue }}
+        run: |
+          # Setting default arguments for the Glue job
+          DEFAULT_ARGS="--enable-glue-datacatalog true --job-bookmark-option job-bookmark-enable --TempDir s3://$BUCKET_NAME/code/temp/${{ matrix.glue }}/ --S3_TARGET_PATH $S3_TARGET_PATH --extra-py-files $PROJECT_LIB_PATH --job-language python"
+
+          # Deploy Glue job with default arguments
+          python scripts/customer360_analytics_workflow.py \
+            /$DEST_PATH/${{ matrix.glue }}-0.1.0-py3-none-any.whl \
+            $ROLE_ARN $REGION $BUCKET_NAME "$DEFAULT_ARGS"
